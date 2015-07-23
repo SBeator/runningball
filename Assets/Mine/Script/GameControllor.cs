@@ -11,10 +11,12 @@ public class GameControllor : MonoBehaviour
 	public Player player;
 	public ScoreManager DistanceText;
 	public Animator gameOverAniator;
-
+	public InputController input;
+	public int minRoadsNumber = 3;
+	public AudioClip gameOverAudio;
+	
 	float removeDelay = 2f;
 	public IList<Road> pendingRemoveRoadList;
-	int minRoadsNumber = 3;
 	bool gameOver;
 	bool canReset;
 
@@ -38,7 +40,7 @@ public class GameControllor : MonoBehaviour
 	{
 		if (this.gameOver) 
 		{
-			if (this.canReset && Input.GetKeyDown(KeyCode.R)) 
+			if (this.canReset && input.GetContolType(ControlType.Jump)) 
 			{
 				Application.LoadLevel (Application.loadedLevel);
 			}
@@ -89,6 +91,16 @@ public class GameControllor : MonoBehaviour
 		this.player.Die();
 		this.gameOver = true;
 		this.gameOverAniator.SetTrigger("GameOver");
+
+		var bgm = this.GetComponent<AudioSource>();
+		if (bgm != null) 
+		{
+			bgm.Stop();
+		}
+
+		bgm.clip = this.gameOverAudio;
+		bgm.loop = false;
+		bgm.Play();
 	}
 
 	void InitializeRoad()

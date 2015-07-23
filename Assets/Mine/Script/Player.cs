@@ -3,9 +3,13 @@ using System.Collections;
 
 public class Player : MonoBehaviour 
 {
-	public float forwardForce = 100;
-	public float maxForwardSpeed = 10;
-	public float minSpeed = 1;
+	public float forwardForce = 100f;
+	public float maxForwardSpeed = 10f;
+	public float forwardResistanceForceFactor = 1f;
+	public float sideResistanceForceFactor = 5f;
+	public float minSpeed = 1f;
+	public float levelUpDistance = 100f;
+	public float levelStepFactor = 0.1f;
 
 	public Vector3 forward;
 	public Vector3 right;
@@ -16,6 +20,11 @@ public class Player : MonoBehaviour
 	public float moveSideForce = 50;
 	public float roadWidth = 10;
 
+	public InputController input;
+
+	float levelUpSpeedStep;
+	float levelUpForceStep;
+	float nextLevelUpdistance;
 	float distance;
 	Vector3 lastPosition;
 	
@@ -31,6 +40,7 @@ public class Player : MonoBehaviour
 	float underFloorHeight = -5f;
 	float floorHeight;
 	Rigidbody rBody;
+	AudioSource jumpAudio;
 
 	bool isDead;
 
@@ -64,25 +74,28 @@ public class Player : MonoBehaviour
 		this.floorHeight = this.rBody.position.y;
 
 		this.distance = 0;
+		this.nextLevelUpdistance = 0;
 		this.lastPosition = this.rBody.position;
+
+		this.levelUpForceStep = this.forwardForce * this.levelStepFactor;
+		this.levelUpSpeedStep = this.maxForwardSpeed * this.levelStepFactor;
 
 		this.stopTime = 0;
 		this.isDead = false;
+
+		this.jumpAudio = this.GetComponent<AudioSource>();
 	}
 
 	void FixedUpdate () 
 	{
 		if (!this.isDead) 
 		{
-			this.rBody.AddForce(this.forwardForce * this.forward);
-			
-			if (this.forwarSpeed() > this.maxForwardSpeed) 
-			{
-				this.limitForwardSpeed();
-			}
+			this.limitForwardSpeed();
 			
 			this.HandleJump ();
 			this.HandleMoveSide();
+
+			this.HandleRotate();
 
 			this.RecordDistance();
 		}
@@ -131,6 +144,20 @@ public class Player : MonoBehaviour
 
 		this.distance += deltaDistance;
 		this.lastPosition = position;
+
+		this.nextLevelUpdistance += deltaDistance;
+		if (this.nextLevelUpdistance > this.levelUpDistance) 
+		{
+			this.LevelUp();
+			this.nextLevelUpdistance = 0;
+		}
+	}
+
+	void LevelUp()
+	{
+		this.forwardForce += this.levelUpForceStep;
+		this.maxForwardSpeed += this.levelUpSpeedStep;
+
 	}
 
 	float forwarSpeed()
@@ -138,30 +165,49 @@ public class Player : MonoBehaviour
 		return Vector3.Dot(this.forward, this.rBody.velocity);
 	}
 
+	float rightSpeed()
+	{
+		return Vector3.Dot(this.right, this.rBody.velocity);
+	}
+
 	void limitForwardSpeed()
 	{
-		this.rBody.velocity = this.rBody.velocity - (this.forwarSpeed() - this.maxForwardSpeed) * this.forward;
+		var forceSize = - this.forwardForce / this.maxForwardSpeed * this.forwarSpeed() + this.forwardForce;
+		this.rBody.AddForce(forceSize * this.forward);
 	}
 	
 	void HandleMoveSide()
 	{
-		var moveHorizontal = Input.GetAxis("Horizontal");
-		
+		// var moveHorizontal = Input.GetAxis("Horizontal");
+		var moveHorizontal = input.Horizontal;
+
 		var rightOffset = Vector3.Dot((this.transform.position - this.rightCenter), this.right);
 		var force = - 2f * this.moveSideForce / this.roadWidth * rightOffset + this.moveSideForce * moveHorizontal;
 		this.rBody.AddForce(force * this.right);
+
+		var rightSpeed = this.rightSpeed();
+		var sideResistanceForce = - this.right.normalized * this.sideResistanceForceFactor * rightSpeed;
+		this.rBody.AddForce(sideResistanceForce);
 	}
 	
 	void HandleJump ()
 	{
 		if (this.jumpTime > this.jumpInterval && isOnFloor ()) {
-			var jump = Input.GetKeyDown (KeyCode.Space);
+			//var jump = Input.GetKeyDown (KeyCode.Space);
+			var jump = input.GetContolType(ControlType.Jump);
+
 			if (jump) {
 				this.rBody.velocity += new Vector3 (0, this.jumpSpeed, 0);
 				this.jumpTime = 0;
+				this.jumpAudio.Play();
 			}
 		}
 		this.jumpTime += Time.deltaTime;
+	}
+
+	void HandleRotate()
+	{
+		this.rBody.angularVelocity = this.forwarSpeed() * this.right;
 	}
 	
 	bool isOnFloor()
